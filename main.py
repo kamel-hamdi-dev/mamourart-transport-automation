@@ -1,8 +1,9 @@
-"""Mamourart Transport Automation - multiple transport emails."""
+"""Mamourart Transport Automation - export missions to CSV."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
+import csv
 import re
 
 
@@ -42,19 +43,30 @@ def parse_transport_email(email_text: str) -> TransportMission:
 
 
 def main() -> None:
-    emails_dir = Path(__file__).with_name("emails")
-    email_files = sorted(emails_dir.glob("*.txt"))
+    base_dir = Path(__file__).parent
+    emails_dir = base_dir / "emails"
+    csv_file = base_dir / "missions.csv"
 
-    print(f"Found {len(email_files)} transport emails.\n")
+    email_files = sorted(emails_dir.glob("*.txt"))
+    missions = []
 
     for email_file in email_files:
         email_text = email_file.read_text(encoding="utf-8")
         mission = parse_transport_email(email_text)
+        missions.append(mission)
 
-        print(f"--- {email_file.name} ---")
-        for key, value in asdict(mission).items():
-            print(f"- {key}: {value}")
-        print()
+    with csv_file.open("w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=["reference", "pickup", "delivery", "date", "driver"],
+        )
+        writer.writeheader()
+
+        for mission in missions:
+            writer.writerow(asdict(mission))
+
+    print(f"Processed {len(missions)} transport missions.")
+    print(f"CSV created: {csv_file}")
 
 
 if __name__ == "__main__":
