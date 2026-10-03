@@ -1,0 +1,6 @@
+Subject: New transport mission
+Reference: TR-2001
+Pickup: Paris
+Delivery: Marseille
+Date: 2026-10-05
+Driver: Karim

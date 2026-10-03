@@ -1,6 +1,7 @@
 """Mamourart Transport Automation - first Python prototype."""
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Optional
 import re
 
@@ -41,19 +42,15 @@ def parse_transport_email(email_text: str) -> TransportMission:
 
 
 def main() -> None:
-    sample_email = """
-Subject: New transport mission
-Reference: TR-1001
-Pickup: Paris
-Delivery: Lyon
-Date: 2026-10-04
-Driver: Ahmed
-"""
+    email_file = Path(__file__).with_name("sample_email.txt")
 
-    mission = parse_transport_email(sample_email)
+    email_text = email_file.read_text(encoding="utf-8")
+    mission = parse_transport_email(email_text)
 
     print("Extracted transport mission:")
     for key, value in asdict(mission).items():
         print(f"- {key}: {value}")
+
+
 if __name__ == "__main__":
     main()
