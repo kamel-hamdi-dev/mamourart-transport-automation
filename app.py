@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - professional dashboard."""
+"""Mamourart Transport Automation - complete mission dashboard."""
 
 from pathlib import Path
 import csv
@@ -209,7 +209,7 @@ class TransportApp:
             "driver",
             "reason",
             "distance",
-            "decision",
+            "status",
             "rejected",
         )
 
@@ -234,10 +234,10 @@ class TransportApp:
             "date": "Date",
             "pickup": "Pickup",
             "delivery": "Delivery",
-            "driver": "Proposed Driver",
+            "driver": "Driver",
             "reason": "Assignment Reason",
             "distance": "Distance (km)",
-            "decision": "Decision",
+            "status": "Status",
             "rejected": "Rejected Drivers",
         }
 
@@ -261,13 +261,13 @@ class TransportApp:
 
         self.tree.column(
             "pickup",
-            width=90,
+            width=95,
             anchor="center",
         )
 
         self.tree.column(
             "delivery",
-            width=90,
+            width=95,
             anchor="center",
         )
 
@@ -289,7 +289,7 @@ class TransportApp:
         )
 
         self.tree.column(
-            "decision",
+            "status",
             width=100,
             anchor="center",
         )
@@ -321,6 +321,12 @@ class TransportApp:
             fill="y",
         )
 
+        # Colours for mission status
+        self.tree.tag_configure(
+            "assigned",
+            background="#dbeafe",
+        )
+
         self.tree.tag_configure(
             "pending",
             background="#fff4cc",
@@ -334,6 +340,11 @@ class TransportApp:
         self.tree.tag_configure(
             "rejected",
             background="#ffd9d9",
+        )
+
+        self.tree.tag_configure(
+            "review",
+            background="#ffe4c7",
         )
 
     def create_buttons(self):
@@ -467,57 +478,141 @@ class TransportApp:
             text=str(needs_review)
         )
 
+    def get_display_status(
+        self,
+        mission,
+        approval,
+    ):
+        if approval:
+            decision = approval.get(
+                "decision",
+                "",
+            ).strip()
+
+            if decision.casefold() == "pending":
+                return "Pending"
+
+            if decision.casefold() == "approved":
+                return "Approved"
+
+            if decision.casefold() == "rejected":
+                return "Rejected"
+
+        return mission.get(
+            "status",
+            "",
+        )
+
+    def get_status_tag(
+        self,
+        status,
+    ):
+        status_lower = (
+            status.strip().casefold()
+        )
+
+        if status_lower == "assigned":
+            return "assigned"
+
+        if status_lower == "pending":
+            return "pending"
+
+        if status_lower == "approved":
+            return "approved"
+
+        if status_lower == "rejected":
+            return "rejected"
+
+        if status_lower == "needs review":
+            return "review"
+
+        return ""
+
     def refresh_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-
-        approvals = load_csv(
-            APPROVALS_FILE
-        )
 
         missions = load_csv(
             MISSIONS_FILE
         )
 
-        missions_by_reference = {
+        approvals = load_csv(
+            APPROVALS_FILE
+        )
+
+        approvals_by_reference = {
             row.get(
                 "reference",
                 "",
             ): row
-            for row in missions
+            for row in approvals
         }
 
-        for approval in approvals:
-            reference = approval.get(
+        for mission in missions:
+            reference = mission.get(
                 "reference",
                 "",
             )
 
-            mission = missions_by_reference.get(
-                reference,
-                {},
+            approval = approvals_by_reference.get(
+                reference
             )
 
-            decision = approval.get(
-                "decision",
-                "",
+            status = self.get_display_status(
+                mission,
+                approval,
             )
 
-            decision_lower = (
-                decision.strip().casefold()
+            tag = self.get_status_tag(
+                status
             )
 
-            if decision_lower == "pending":
-                tag = "pending"
+            if approval:
+                driver = approval.get(
+                    "proposed_driver",
+                    "",
+                )
 
-            elif decision_lower == "approved":
-                tag = "approved"
+                reason = approval.get(
+                    "reason",
+                    "",
+                )
 
-            elif decision_lower == "rejected":
-                tag = "rejected"
+                distance = approval.get(
+                    "distance_km",
+                    "",
+                )
+
+                rejected = approval.get(
+                    "rejected_drivers",
+                    "",
+                )
 
             else:
-                tag = ""
+                driver = mission.get(
+                    "driver",
+                    "",
+                )
+
+                reason = (
+                    "Driver provided in email"
+                    if driver
+                    else ""
+                )
+
+                distance = mission.get(
+                    "distance_km",
+                    "",
+                )
+
+                rejected = ""
+
+            # Approved missions use final driver
+            if status.casefold() == "approved":
+                driver = mission.get(
+                    "driver",
+                    "",
+                ) or driver
 
             self.tree.insert(
                 "",
@@ -536,23 +631,11 @@ class TransportApp:
                         "delivery",
                         "",
                     ),
-                    approval.get(
-                        "proposed_driver",
-                        "",
-                    ),
-                    approval.get(
-                        "reason",
-                        "",
-                    ),
-                    approval.get(
-                        "distance_km",
-                        "",
-                    ),
-                    decision,
-                    approval.get(
-                        "rejected_drivers",
-                        "",
-                    ),
+                    driver,
+                    reason,
+                    distance,
+                    status,
+                    rejected,
                 ),
                 tags=(tag,),
             )
@@ -564,8 +647,8 @@ class TransportApp:
 
         self.status_label.config(
             text=(
-                f"Approval records: "
-                f"{len(approvals)}"
+                f"Showing {len(missions)} "
+                f"transport mission(s)"
             )
         )
 
@@ -671,9 +754,14 @@ class TransportApp:
                 break
 
         if not found:
-            messagebox.showerror(
-                "Error",
-                "Mission not found.",
+            messagebox.showwarning(
+                "No Approval Required",
+                (
+                    f"Mission {reference} "
+                    "does not have an approval record.\n\n"
+                    "The driver was already provided "
+                    "in the original transport email."
+                ),
             )
 
             return
