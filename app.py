@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - professional desktop interface."""
+"""Mamourart Transport Automation - professional dashboard."""
 
 from pathlib import Path
 import csv
@@ -68,10 +68,15 @@ class TransportApp:
             "Mamourart Transport Automation"
         )
 
-        self.root.geometry("1200x620")
-        self.root.minsize(1050, 520)
+        self.root.geometry("1280x700")
+        self.root.minsize(1100, 600)
+
+        self.root.configure(
+            bg="#f3f4f6"
+        )
 
         self.create_header()
+        self.create_stats()
         self.create_table()
         self.create_buttons()
         self.create_status_bar()
@@ -79,31 +84,126 @@ class TransportApp:
         self.refresh_table()
 
     def create_header(self):
-        title = ttk.Label(
+        header = tk.Frame(
             self.root,
+            bg="#f3f4f6",
+        )
+
+        header.pack(
+            fill="x",
+            pady=(18, 8),
+        )
+
+        tk.Label(
+            header,
             text="Mamourart Transport Automation",
-            font=("Segoe UI", 20, "bold"),
-        )
+            font=("Segoe UI", 22, "bold"),
+            bg="#f3f4f6",
+        ).pack()
 
-        title.pack(
-            pady=(20, 5)
-        )
-
-        subtitle = ttk.Label(
-            self.root,
+        tk.Label(
+            header,
             text=(
-                "Driver Assignment & Human Approval Dashboard"
+                "Driver Assignment & "
+                "Human Approval Dashboard"
             ),
             font=("Segoe UI", 11),
+            bg="#f3f4f6",
+            fg="#555555",
+        ).pack(
+            pady=(4, 0)
         )
 
-        subtitle.pack(
-            pady=(0, 18)
+    def create_stats(self):
+        stats_frame = tk.Frame(
+            self.root,
+            bg="#f3f4f6",
         )
+
+        stats_frame.pack(
+            fill="x",
+            padx=25,
+            pady=(10, 15),
+        )
+
+        for column in range(4):
+            stats_frame.grid_columnconfigure(
+                column,
+                weight=1,
+            )
+
+        self.total_value = self.create_stat_card(
+            stats_frame,
+            0,
+            "Total Missions",
+        )
+
+        self.pending_value = self.create_stat_card(
+            stats_frame,
+            1,
+            "Pending",
+        )
+
+        self.approved_value = self.create_stat_card(
+            stats_frame,
+            2,
+            "Approved",
+        )
+
+        self.review_value = self.create_stat_card(
+            stats_frame,
+            3,
+            "Needs Review",
+        )
+
+    def create_stat_card(
+        self,
+        parent,
+        column,
+        title,
+    ):
+        card = tk.Frame(
+            parent,
+            bg="white",
+            bd=1,
+            relief="solid",
+        )
+
+        card.grid(
+            row=0,
+            column=column,
+            sticky="nsew",
+            padx=8,
+            ipady=8,
+        )
+
+        value_label = tk.Label(
+            card,
+            text="0",
+            font=("Segoe UI", 22, "bold"),
+            bg="white",
+        )
+
+        value_label.pack(
+            pady=(8, 0)
+        )
+
+        tk.Label(
+            card,
+            text=title,
+            font=("Segoe UI", 10),
+            bg="white",
+            fg="#555555",
+        ).pack(
+            pady=(0, 8)
+        )
+
+        return value_label
 
     def create_table(self):
         columns = (
             "reference",
+            "date",
             "pickup",
             "delivery",
             "driver",
@@ -129,73 +229,57 @@ class TransportApp:
             show="headings",
         )
 
-        self.tree.heading(
-            "reference",
-            text="Mission",
-        )
+        headings = {
+            "reference": "Mission",
+            "date": "Date",
+            "pickup": "Pickup",
+            "delivery": "Delivery",
+            "driver": "Proposed Driver",
+            "reason": "Assignment Reason",
+            "distance": "Distance (km)",
+            "decision": "Decision",
+            "rejected": "Rejected Drivers",
+        }
 
-        self.tree.heading(
-            "pickup",
-            text="Pickup",
-        )
-
-        self.tree.heading(
-            "delivery",
-            text="Delivery",
-        )
-
-        self.tree.heading(
-            "driver",
-            text="Proposed Driver",
-        )
-
-        self.tree.heading(
-            "reason",
-            text="Assignment Reason",
-        )
-
-        self.tree.heading(
-            "distance",
-            text="Distance (km)",
-        )
-
-        self.tree.heading(
-            "decision",
-            text="Decision",
-        )
-
-        self.tree.heading(
-            "rejected",
-            text="Rejected Drivers",
-        )
+        for column, title in headings.items():
+            self.tree.heading(
+                column,
+                text=title,
+            )
 
         self.tree.column(
             "reference",
+            width=85,
+            anchor="center",
+        )
+
+        self.tree.column(
+            "date",
+            width=105,
+            anchor="center",
+        )
+
+        self.tree.column(
+            "pickup",
             width=90,
             anchor="center",
         )
 
         self.tree.column(
-            "pickup",
-            width=100,
-            anchor="center",
-        )
-
-        self.tree.column(
             "delivery",
-            width=100,
+            width=90,
             anchor="center",
         )
 
         self.tree.column(
             "driver",
-            width=120,
+            width=115,
             anchor="center",
         )
 
         self.tree.column(
             "reason",
-            width=220,
+            width=210,
         )
 
         self.tree.column(
@@ -237,7 +321,6 @@ class TransportApp:
             fill="y",
         )
 
-        # Status colours
         self.tree.tag_configure(
             "pending",
             background="#fff4cc",
@@ -317,14 +400,71 @@ class TransportApp:
         )
 
     def create_status_bar(self):
-        self.status_label = ttk.Label(
+        self.status_label = tk.Label(
             self.root,
             text="",
             font=("Segoe UI", 10),
+            bg="#f3f4f6",
+            fg="#444444",
         )
 
         self.status_label.pack(
             pady=(0, 15)
+        )
+
+    def update_stats(
+        self,
+        missions,
+        approvals,
+    ):
+        total_missions = len(
+            missions
+        )
+
+        pending = sum(
+            1
+            for row in approvals
+            if row.get(
+                "decision",
+                "",
+            ).strip().casefold()
+            == "pending"
+        )
+
+        approved = sum(
+            1
+            for row in missions
+            if row.get(
+                "status",
+                "",
+            ).strip().casefold()
+            == "approved"
+        )
+
+        needs_review = sum(
+            1
+            for row in missions
+            if row.get(
+                "status",
+                "",
+            ).strip().casefold()
+            == "needs review"
+        )
+
+        self.total_value.config(
+            text=str(total_missions)
+        )
+
+        self.pending_value.config(
+            text=str(pending)
+        )
+
+        self.approved_value.config(
+            text=str(approved)
+        )
+
+        self.review_value.config(
+            text=str(needs_review)
         )
 
     def refresh_table(self):
@@ -340,12 +480,12 @@ class TransportApp:
         )
 
         missions_by_reference = {
-            row.get("reference", ""): row
+            row.get(
+                "reference",
+                "",
+            ): row
             for row in missions
         }
-
-        pending_count = 0
-        approved_count = 0
 
         for approval in approvals:
             reference = approval.get(
@@ -369,11 +509,9 @@ class TransportApp:
 
             if decision_lower == "pending":
                 tag = "pending"
-                pending_count += 1
 
             elif decision_lower == "approved":
                 tag = "approved"
-                approved_count += 1
 
             elif decision_lower == "rejected":
                 tag = "rejected"
@@ -386,6 +524,10 @@ class TransportApp:
                 "end",
                 values=(
                     reference,
+                    mission.get(
+                        "date",
+                        "",
+                    ),
                     mission.get(
                         "pickup",
                         "",
@@ -415,11 +557,15 @@ class TransportApp:
                 tags=(tag,),
             )
 
+        self.update_stats(
+            missions,
+            approvals,
+        )
+
         self.status_label.config(
             text=(
-                f"Total: {len(approvals)}   |   "
-                f"Pending: {pending_count}   |   "
-                f"Approved: {approved_count}"
+                f"Approval records: "
+                f"{len(approvals)}"
             )
         )
 
@@ -456,26 +602,36 @@ class TransportApp:
             return False
 
     def run_automation_button(self):
-        success = self.run_assignment_engine()
+        success = (
+            self.run_assignment_engine()
+        )
 
         if success:
             self.refresh_table()
 
             messagebox.showinfo(
-                "Automation completed",
+                "Automation Completed",
                 (
                     "Transport automation "
                     "completed successfully."
                 ),
             )
 
-    def change_decision(self, decision):
-        selected = self.tree.selection()
+    def change_decision(
+        self,
+        decision,
+    ):
+        selected = (
+            self.tree.selection()
+        )
 
         if not selected:
             messagebox.showwarning(
                 "No Mission Selected",
-                "Please select a mission first.",
+                (
+                    "Please select "
+                    "a mission first."
+                ),
             )
 
             return
@@ -507,7 +663,10 @@ class TransportApp:
                 ).strip()
                 == reference.strip()
             ):
-                row["decision"] = decision
+                row[
+                    "decision"
+                ] = decision
+
                 found = True
                 break
 
@@ -519,9 +678,13 @@ class TransportApp:
 
             return
 
-        save_approvals(rows)
+        save_approvals(
+            rows
+        )
 
-        success = self.run_assignment_engine()
+        success = (
+            self.run_assignment_engine()
+        )
 
         self.refresh_table()
 
@@ -534,8 +697,9 @@ class TransportApp:
                 (
                     f"Mission {reference}\n\n"
                     "Driver rejected.\n"
-                    "The system searched automatically "
-                    "for another available driver."
+                    "The system searched "
+                    "automatically for "
+                    "another available driver."
                 ),
             )
 
@@ -552,7 +716,10 @@ class TransportApp:
         if not MISSIONS_FILE.exists():
             messagebox.showwarning(
                 "File Not Found",
-                "missions.csv does not exist yet.",
+                (
+                    "missions.csv "
+                    "does not exist yet."
+                ),
             )
 
             return
@@ -572,7 +739,9 @@ class TransportApp:
 def main():
     root = tk.Tk()
 
-    TransportApp(root)
+    TransportApp(
+        root
+    )
 
     root.mainloop()
 
