@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - export missions to CSV."""
+"""Mamourart Transport Automation - export missions with status."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -14,6 +14,7 @@ class TransportMission:
     delivery: Optional[str] = None
     date: Optional[str] = None
     driver: Optional[str] = None
+    status: str = "New"
 
 
 FIELD_PATTERNS = {
@@ -39,7 +40,15 @@ def parse_transport_email(email_text: str) -> TransportMission:
         field: extract_field(email_text, pattern)
         for field, pattern in FIELD_PATTERNS.items()
     }
-    return TransportMission(**values)
+
+    mission = TransportMission(**values)
+
+    if mission.driver:
+        mission.status = "Assigned"
+    else:
+        mission.status = "New"
+
+    return mission
 
 
 def main() -> None:
@@ -58,8 +67,16 @@ def main() -> None:
     with csv_file.open("w", newline="", encoding="utf-8-sig") as file:
         writer = csv.DictWriter(
             file,
-            fieldnames=["reference", "pickup", "delivery", "date", "driver"],
+            fieldnames=[
+                "reference",
+                "pickup",
+                "delivery",
+                "date",
+                "driver",
+                "status",
+            ],
         )
+
         writer.writeheader()
 
         for mission in missions:
