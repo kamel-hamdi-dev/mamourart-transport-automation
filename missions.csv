@@ -1,6 +1,6 @@
-﻿reference,pickup,delivery,date,driver,status,distance_km
-TR-3001,Paris,Lille,2026-10-06,Sami,Assigned,0
-TR-3002,Lyon,Marseille,2026-10-06,Karim,Assigned,0
-TR-3003,Bordeaux,Toulouse,2026-10-07,Ahmed,Assigned,0
-TR-3004,Nice,Paris,2026-10-08,Youssef,Assigned,0
-TR-3005,Nice,Lyon,2026-10-08,Karim,Assigned,470
+﻿reference,pickup,delivery,date,driver,proposed_driver,status,distance_km
+TR-3001,Paris,Lille,2026-10-06,Sami,,Assigned,0
+TR-3002,Lyon,Marseille,2026-10-06,Karim,,Assigned,0
+TR-3003,Bordeaux,Toulouse,2026-10-07,Ahmed,,Assigned,0
+TR-3004,Nice,Paris,2026-10-08,Youssef,,Approved,0
+TR-3005,Nice,Lyon,2026-10-08,Karim,,Approved,470

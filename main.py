@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - assignment decision log."""
+"""Mamourart Transport Automation - approval workflow."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -14,6 +14,7 @@ class TransportMission:
     delivery: Optional[str] = None
     date: Optional[str] = None
     driver: Optional[str] = None
+    proposed_driver: Optional[str] = None
     status: str = "New"
     distance_km: Optional[int] = None
 
@@ -27,7 +28,7 @@ FIELD_PATTERNS = {
 }
 
 
-def extract_field(email_text: str, pattern: str) -> Optional[str]:
+def extract_field(email_text, pattern):
     match = re.search(
         pattern,
         email_text,
@@ -36,7 +37,7 @@ def extract_field(email_text: str, pattern: str) -> Optional[str]:
     return match.group(1).strip() if match else None
 
 
-def parse_transport_email(email_text: str) -> TransportMission:
+def parse_transport_email(email_text):
     values = {
         field: extract_field(email_text, pattern)
         for field, pattern in FIELD_PATTERNS.items()
@@ -50,7 +51,10 @@ def parse_transport_email(email_text: str) -> TransportMission:
     return mission
 
 
-def load_csv(file_path: Path) -> list[dict]:
+def load_csv(file_path):
+    if not file_path.exists():
+        return []
+
     with file_path.open(
         "r",
         encoding="utf-8-sig",
@@ -59,55 +63,41 @@ def load_csv(file_path: Path) -> list[dict]:
         return list(csv.DictReader(file))
 
 
-def get_distance(
-    from_city: str,
-    to_city: str,
-    distances: list[dict],
-) -> Optional[int]:
-
+def get_distance(from_city, to_city, distances):
     if from_city.casefold() == to_city.casefold():
         return 0
 
     for row in distances:
         if (
-            row["from_city"].strip().casefold() == from_city.casefold()
-            and row["to_city"].strip().casefold() == to_city.casefold()
+            row["from_city"].strip().casefold()
+            == from_city.casefold()
+            and row["to_city"].strip().casefold()
+            == to_city.casefold()
         ):
             return int(row["distance_km"])
 
     return None
 
 
-def get_driver_city(
-    driver_name: str,
-    drivers: list[dict],
-) -> Optional[str]:
-
+def get_driver_city(driver_name, drivers):
     for driver in drivers:
-        if driver["name"].strip().casefold() == driver_name.casefold():
+        if (
+            driver["name"].strip().casefold()
+            == driver_name.strip().casefold()
+        ):
             return driver["city"].strip()
 
     return None
 
 
-def driver_is_free(
-    driver_name: str,
-    mission_date: Optional[str],
-    busy_drivers: set,
-) -> bool:
-
+def driver_is_free(driver_name, mission_date, busy_drivers):
     return (
         driver_name.casefold(),
         mission_date,
     ) not in busy_drivers
 
 
-def reserve_driver(
-    driver_name: str,
-    mission_date: Optional[str],
-    busy_drivers: set,
-) -> None:
-
+def reserve_driver(driver_name, mission_date, busy_drivers):
     busy_drivers.add(
         (
             driver_name.casefold(),
@@ -116,16 +106,58 @@ def reserve_driver(
     )
 
 
-def assign_driver(
-    mission: TransportMission,
-    drivers: list[dict],
-    distances: list[dict],
-    busy_drivers: set,
-) -> tuple[TransportMission, str]:
+def apply_existing_approval(
+    mission,
+    approval,
+    drivers,
+    distances,
+    busy_drivers,
+):
+    proposed_driver = approval["proposed_driver"].strip()
+    decision = approval["decision"].strip().casefold()
 
+    mission.proposed_driver = proposed_driver
+
+    if approval.get("distance_km"):
+        mission.distance_km = int(approval["distance_km"])
+
+    if decision == "approved":
+        mission.driver = proposed_driver
+        mission.proposed_driver = None
+        mission.status = "Approved"
+
+        reserve_driver(
+            mission.driver,
+            mission.date,
+            busy_drivers,
+        )
+
+        print(
+            f"Approved assignment: "
+            f"{mission.driver} -> {mission.reference}"
+        )
+
+        return mission
+
+    mission.status = "Proposed"
+
+    reserve_driver(
+        proposed_driver,
+        mission.date,
+        busy_drivers,
+    )
+
+    return mission
+
+
+def propose_driver(
+    mission,
+    drivers,
+    distances,
+    busy_drivers,
+):
     pickup_city = (mission.pickup or "").strip()
 
-    # Driver already specified in the email
     if mission.driver:
         driver_city = get_driver_city(
             mission.driver,
@@ -147,7 +179,7 @@ def assign_driver(
 
         return mission, "Driver provided in email"
 
-    # 1. Local driver
+    # Local driver first
     for driver in drivers:
         driver_name = driver["name"].strip()
         driver_city = driver["city"].strip()
@@ -168,8 +200,8 @@ def assign_driver(
         )
 
         if available and same_city and free:
-            mission.driver = driver_name
-            mission.status = "Assigned"
+            mission.proposed_driver = driver_name
+            mission.status = "Proposed"
             mission.distance_km = 0
 
             reserve_driver(
@@ -178,14 +210,9 @@ def assign_driver(
                 busy_drivers,
             )
 
-            print(
-                f"Local driver assigned: {driver_name} "
-                f"to mission {mission.reference}"
-            )
-
             return mission, "Local available driver"
 
-    # 2. Nearest available driver
+    # Nearest available driver
     candidates = []
 
     for driver in drivers:
@@ -225,8 +252,8 @@ def assign_driver(
 
         distance, driver_name, driver_city = candidates[0]
 
-        mission.driver = driver_name
-        mission.status = "Assigned"
+        mission.proposed_driver = driver_name
+        mission.status = "Proposed"
         mission.distance_km = distance
 
         reserve_driver(
@@ -235,43 +262,37 @@ def assign_driver(
             busy_drivers,
         )
 
-        print(
-            f"Nearest driver assigned: {driver_name} "
-            f"from {driver_city} "
-            f"({distance} km) "
-            f"to mission {mission.reference}"
-        )
-
         return mission, "Nearest available driver"
 
     mission.status = "New"
-    mission.distance_km = None
-
-    print(
-        f"No available driver for mission {mission.reference}"
-    )
-
     return mission, "No available driver"
 
 
-def main() -> None:
+def main():
     base_dir = Path(__file__).parent
 
     emails_dir = base_dir / "emails"
     drivers_file = base_dir / "drivers.csv"
     distances_file = base_dir / "distances.csv"
     missions_file = base_dir / "missions.csv"
-    log_file = base_dir / "assignment_log.csv"
+    approvals_file = base_dir / "approvals.csv"
 
     drivers = load_csv(drivers_file)
     distances = load_csv(distances_file)
+
+    existing_approvals = load_csv(approvals_file)
+
+    approvals_by_reference = {
+        row["reference"].strip(): row
+        for row in existing_approvals
+    }
 
     email_files = sorted(
         emails_dir.glob("*.txt")
     )
 
     missions = []
-    assignment_logs = []
+    approvals = []
     busy_drivers = set()
 
     for email_file in email_files:
@@ -281,28 +302,58 @@ def main() -> None:
 
         mission = parse_transport_email(email_text)
 
-        mission, reason = assign_driver(
-            mission,
-            drivers,
-            distances,
-            busy_drivers,
-        )
+        # Mission already has a driver from the email
+        if mission.driver:
+            mission, reason = propose_driver(
+                mission,
+                drivers,
+                distances,
+                busy_drivers,
+            )
+
+        # Existing human decision
+        elif mission.reference in approvals_by_reference:
+            approval = approvals_by_reference[
+                mission.reference
+            ]
+
+            mission = apply_existing_approval(
+                mission,
+                approval,
+                drivers,
+                distances,
+                busy_drivers,
+            )
+
+            reason = approval["reason"]
+
+            approvals.append(approval)
+
+        # New mission requiring proposal
+        else:
+            mission, reason = propose_driver(
+                mission,
+                drivers,
+                distances,
+                busy_drivers,
+            )
+
+            if mission.status == "Proposed":
+                approval = {
+                    "reference": mission.reference,
+                    "proposed_driver": (
+                        mission.proposed_driver
+                    ),
+                    "reason": reason,
+                    "distance_km": (
+                        mission.distance_km
+                    ),
+                    "decision": "Pending",
+                }
+
+                approvals.append(approval)
 
         missions.append(mission)
-
-        assignment_logs.append(
-            {
-                "reference": mission.reference,
-                "driver": mission.driver or "",
-                "reason": reason,
-                "distance_km": (
-                    mission.distance_km
-                    if mission.distance_km is not None
-                    else ""
-                ),
-                "status": mission.status,
-            }
-        )
 
     with missions_file.open(
         "w",
@@ -318,6 +369,7 @@ def main() -> None:
                 "delivery",
                 "date",
                 "driver",
+                "proposed_driver",
                 "status",
                 "distance_km",
             ],
@@ -328,7 +380,7 @@ def main() -> None:
         for mission in missions:
             writer.writerow(asdict(mission))
 
-    with log_file.open(
+    with approvals_file.open(
         "w",
         newline="",
         encoding="utf-8-sig",
@@ -338,19 +390,23 @@ def main() -> None:
             file,
             fieldnames=[
                 "reference",
-                "driver",
+                "proposed_driver",
                 "reason",
                 "distance_km",
-                "status",
+                "decision",
             ],
         )
 
         writer.writeheader()
-        writer.writerows(assignment_logs)
+        writer.writerows(approvals)
 
-    print(f"Processed {len(missions)} transport missions.")
-    print(f"CSV created: {missions_file}")
-    print(f"Assignment log created: {log_file}")
+    print(
+        f"Processed {len(missions)} missions."
+    )
+
+    print(
+        f"Approval records: {len(approvals)}"
+    )
 
 
 if __name__ == "__main__":
