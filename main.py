@@ -55,3 +55,5 @@ Driver: Ahmed
     print("Extracted transport mission:")
     for key, value in asdict(mission).items():
         print(f"- {key}: {value}")
+if __name__ == "__main__":
+    main()
