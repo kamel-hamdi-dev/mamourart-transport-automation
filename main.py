@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - automatic driver assignment."""
+"""Mamourart Transport Automation - driver schedule conflict check."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -50,36 +50,64 @@ def parse_transport_email(email_text: str) -> TransportMission:
 
 
 def load_drivers(drivers_file: Path) -> list[dict]:
-    with drivers_file.open("r", encoding="utf-8-sig", newline="") as file:
+    with drivers_file.open(
+        "r",
+        encoding="utf-8-sig",
+        newline="",
+    ) as file:
         return list(csv.DictReader(file))
 
 
 def assign_driver(
     mission: TransportMission,
     drivers: list[dict],
+    busy_drivers: set,
 ) -> TransportMission:
 
     if mission.driver:
+        busy_drivers.add(
+            (
+                mission.driver.casefold(),
+                mission.date,
+            )
+        )
         return mission
 
     for driver in drivers:
+        driver_name = driver["name"].strip()
+        driver_city = driver["city"].strip()
+        available = driver["available"].strip().casefold() == "yes"
+
         same_city = (
-            driver["city"].strip().casefold()
+            driver_city.casefold()
             == (mission.pickup or "").strip().casefold()
         )
 
-        available = driver["available"].strip().casefold() == "yes"
+        schedule_key = (
+            driver_name.casefold(),
+            mission.date,
+        )
 
-        if same_city and available:
-            mission.driver = driver["name"].strip()
+        already_busy = schedule_key in busy_drivers
+
+        if same_city and available and not already_busy:
+            mission.driver = driver_name
             mission.status = "Assigned"
 
+            busy_drivers.add(schedule_key)
+
             print(
-                f"Auto-assigned {mission.driver} "
+                f"Auto-assigned {driver_name} "
                 f"to mission {mission.reference}"
             )
 
             return mission
+
+        if same_city and available and already_busy:
+            print(
+                f"Schedule conflict: {driver_name} "
+                f"is already busy on {mission.date}"
+            )
 
     mission.status = "New"
     return mission
@@ -95,16 +123,27 @@ def main() -> None:
     email_files = sorted(emails_dir.glob("*.txt"))
 
     missions = []
+    busy_drivers = set()
 
     for email_file in email_files:
         email_text = email_file.read_text(encoding="utf-8")
 
         mission = parse_transport_email(email_text)
-        mission = assign_driver(mission, drivers)
+
+        mission = assign_driver(
+            mission,
+            drivers,
+            busy_drivers,
+        )
 
         missions.append(mission)
 
-    with csv_file.open("w", newline="", encoding="utf-8-sig") as file:
+    with csv_file.open(
+        "w",
+        newline="",
+        encoding="utf-8-sig",
+    ) as file:
+
         writer = csv.DictWriter(
             file,
             fieldnames=[
