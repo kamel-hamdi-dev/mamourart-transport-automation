@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - first Python prototype."""
+"""Mamourart Transport Automation - multiple transport emails."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -42,14 +42,19 @@ def parse_transport_email(email_text: str) -> TransportMission:
 
 
 def main() -> None:
-    email_file = Path(__file__).with_name("sample_email.txt")
+    emails_dir = Path(__file__).with_name("emails")
+    email_files = sorted(emails_dir.glob("*.txt"))
 
-    email_text = email_file.read_text(encoding="utf-8")
-    mission = parse_transport_email(email_text)
+    print(f"Found {len(email_files)} transport emails.\n")
 
-    print("Extracted transport mission:")
-    for key, value in asdict(mission).items():
-        print(f"- {key}: {value}")
+    for email_file in email_files:
+        email_text = email_file.read_text(encoding="utf-8")
+        mission = parse_transport_email(email_text)
+
+        print(f"--- {email_file.name} ---")
+        for key, value in asdict(mission).items():
+            print(f"- {key}: {value}")
+        print()
 
 
 if __name__ == "__main__":
