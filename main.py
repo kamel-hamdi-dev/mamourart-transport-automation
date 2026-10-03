@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - nearest driver with distance."""
+"""Mamourart Transport Automation - assignment decision log."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -121,11 +121,11 @@ def assign_driver(
     drivers: list[dict],
     distances: list[dict],
     busy_drivers: set,
-) -> TransportMission:
+) -> tuple[TransportMission, str]:
 
     pickup_city = (mission.pickup or "").strip()
 
-    # Driver already specified in email
+    # Driver already specified in the email
     if mission.driver:
         driver_city = get_driver_city(
             mission.driver,
@@ -145,9 +145,9 @@ def assign_driver(
             busy_drivers,
         )
 
-        return mission
+        return mission, "Driver provided in email"
 
-    # 1. Prefer local available driver
+    # 1. Local driver
     for driver in drivers:
         driver_name = driver["name"].strip()
         driver_city = driver["city"].strip()
@@ -183,9 +183,9 @@ def assign_driver(
                 f"to mission {mission.reference}"
             )
 
-            return mission
+            return mission, "Local available driver"
 
-    # 2. Find nearest available driver
+    # 2. Nearest available driver
     candidates = []
 
     for driver in drivers:
@@ -242,16 +242,16 @@ def assign_driver(
             f"to mission {mission.reference}"
         )
 
-        return mission
+        return mission, "Nearest available driver"
+
+    mission.status = "New"
+    mission.distance_km = None
 
     print(
         f"No available driver for mission {mission.reference}"
     )
 
-    mission.status = "New"
-    mission.distance_km = None
-
-    return mission
+    return mission, "No available driver"
 
 
 def main() -> None:
@@ -261,6 +261,7 @@ def main() -> None:
     drivers_file = base_dir / "drivers.csv"
     distances_file = base_dir / "distances.csv"
     missions_file = base_dir / "missions.csv"
+    log_file = base_dir / "assignment_log.csv"
 
     drivers = load_csv(drivers_file)
     distances = load_csv(distances_file)
@@ -270,6 +271,7 @@ def main() -> None:
     )
 
     missions = []
+    assignment_logs = []
     busy_drivers = set()
 
     for email_file in email_files:
@@ -279,7 +281,7 @@ def main() -> None:
 
         mission = parse_transport_email(email_text)
 
-        mission = assign_driver(
+        mission, reason = assign_driver(
             mission,
             drivers,
             distances,
@@ -287,6 +289,20 @@ def main() -> None:
         )
 
         missions.append(mission)
+
+        assignment_logs.append(
+            {
+                "reference": mission.reference,
+                "driver": mission.driver or "",
+                "reason": reason,
+                "distance_km": (
+                    mission.distance_km
+                    if mission.distance_km is not None
+                    else ""
+                ),
+                "status": mission.status,
+            }
+        )
 
     with missions_file.open(
         "w",
@@ -312,8 +328,29 @@ def main() -> None:
         for mission in missions:
             writer.writerow(asdict(mission))
 
+    with log_file.open(
+        "w",
+        newline="",
+        encoding="utf-8-sig",
+    ) as file:
+
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[
+                "reference",
+                "driver",
+                "reason",
+                "distance_km",
+                "status",
+            ],
+        )
+
+        writer.writeheader()
+        writer.writerows(assignment_logs)
+
     print(f"Processed {len(missions)} transport missions.")
     print(f"CSV created: {missions_file}")
+    print(f"Assignment log created: {log_file}")
 
 
 if __name__ == "__main__":

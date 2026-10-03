@@ -1,0 +1,6 @@
+﻿reference,driver,reason,distance_km,status
+TR-3001,Sami,Driver provided in email,0,Assigned
+TR-3002,Karim,Driver provided in email,0,Assigned
+TR-3003,Ahmed,Driver provided in email,0,Assigned
+TR-3004,Youssef,Local available driver,0,Assigned
+TR-3005,Karim,Nearest available driver,470,Assigned
