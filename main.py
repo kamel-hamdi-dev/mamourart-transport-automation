@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - export missions with status."""
+"""Mamourart Transport Automation - automatic driver assignment."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -45,23 +45,63 @@ def parse_transport_email(email_text: str) -> TransportMission:
 
     if mission.driver:
         mission.status = "Assigned"
-    else:
-        mission.status = "New"
 
+    return mission
+
+
+def load_drivers(drivers_file: Path) -> list[dict]:
+    with drivers_file.open("r", encoding="utf-8-sig", newline="") as file:
+        return list(csv.DictReader(file))
+
+
+def assign_driver(
+    mission: TransportMission,
+    drivers: list[dict],
+) -> TransportMission:
+
+    if mission.driver:
+        return mission
+
+    for driver in drivers:
+        same_city = (
+            driver["city"].strip().casefold()
+            == (mission.pickup or "").strip().casefold()
+        )
+
+        available = driver["available"].strip().casefold() == "yes"
+
+        if same_city and available:
+            mission.driver = driver["name"].strip()
+            mission.status = "Assigned"
+
+            print(
+                f"Auto-assigned {mission.driver} "
+                f"to mission {mission.reference}"
+            )
+
+            return mission
+
+    mission.status = "New"
     return mission
 
 
 def main() -> None:
     base_dir = Path(__file__).parent
     emails_dir = base_dir / "emails"
+    drivers_file = base_dir / "drivers.csv"
     csv_file = base_dir / "missions.csv"
 
+    drivers = load_drivers(drivers_file)
     email_files = sorted(emails_dir.glob("*.txt"))
+
     missions = []
 
     for email_file in email_files:
         email_text = email_file.read_text(encoding="utf-8")
+
         mission = parse_transport_email(email_text)
+        mission = assign_driver(mission, drivers)
+
         missions.append(mission)
 
     with csv_file.open("w", newline="", encoding="utf-8-sig") as file:
