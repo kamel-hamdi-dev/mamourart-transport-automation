@@ -1,7 +1,8 @@
-"""Mamourart Transport Automation - approval interface."""
+"""Mamourart Transport Automation - professional desktop interface."""
 
 from pathlib import Path
 import csv
+import os
 import subprocess
 import sys
 import tkinter as tk
@@ -9,10 +10,12 @@ from tkinter import ttk, messagebox
 
 
 BASE_DIR = Path(__file__).parent
+
 APPROVALS_FILE = BASE_DIR / "approvals.csv"
+MISSIONS_FILE = BASE_DIR / "missions.csv"
 MAIN_FILE = BASE_DIR / "main.py"
 
-FIELDS = [
+APPROVAL_FIELDS = [
     "reference",
     "proposed_driver",
     "reason",
@@ -22,11 +25,11 @@ FIELDS = [
 ]
 
 
-def load_approvals():
-    if not APPROVALS_FILE.exists():
+def load_csv(file_path):
+    if not file_path.exists():
         return []
 
-    with APPROVALS_FILE.open(
+    with file_path.open(
         "r",
         encoding="utf-8-sig",
         newline="",
@@ -43,7 +46,7 @@ def save_approvals(rows):
 
         writer = csv.DictWriter(
             file,
-            fieldnames=FIELDS,
+            fieldnames=APPROVAL_FIELDS,
         )
 
         writer.writeheader()
@@ -52,12 +55,12 @@ def save_approvals(rows):
             writer.writerow(
                 {
                     field: row.get(field, "")
-                    for field in FIELDS
+                    for field in APPROVAL_FIELDS
                 }
             )
 
 
-class ApprovalApp:
+class TransportApp:
     def __init__(self, root):
         self.root = root
 
@@ -65,28 +68,44 @@ class ApprovalApp:
             "Mamourart Transport Automation"
         )
 
-        self.root.geometry("950x520")
-        self.root.minsize(850, 450)
+        self.root.geometry("1200x620")
+        self.root.minsize(1050, 520)
 
+        self.create_header()
+        self.create_table()
+        self.create_buttons()
+        self.create_status_bar()
+
+        self.refresh_table()
+
+    def create_header(self):
         title = ttk.Label(
-            root,
-            text="Transport Mission Approval",
-            font=("Segoe UI", 18, "bold"),
+            self.root,
+            text="Mamourart Transport Automation",
+            font=("Segoe UI", 20, "bold"),
         )
-        title.pack(pady=(20, 5))
+
+        title.pack(
+            pady=(20, 5)
+        )
 
         subtitle = ttk.Label(
-            root,
+            self.root,
             text=(
-                "Review proposed driver assignments "
-                "before final approval"
+                "Driver Assignment & Human Approval Dashboard"
             ),
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 11),
         )
-        subtitle.pack(pady=(0, 20))
 
+        subtitle.pack(
+            pady=(0, 18)
+        )
+
+    def create_table(self):
         columns = (
             "reference",
+            "pickup",
+            "delivery",
             "driver",
             "reason",
             "distance",
@@ -94,33 +113,57 @@ class ApprovalApp:
             "rejected",
         )
 
+        frame = ttk.Frame(
+            self.root
+        )
+
+        frame.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+        )
+
         self.tree = ttk.Treeview(
-            root,
+            frame,
             columns=columns,
             show="headings",
-            height=12,
         )
 
         self.tree.heading(
             "reference",
             text="Mission",
         )
+
+        self.tree.heading(
+            "pickup",
+            text="Pickup",
+        )
+
+        self.tree.heading(
+            "delivery",
+            text="Delivery",
+        )
+
         self.tree.heading(
             "driver",
             text="Proposed Driver",
         )
+
         self.tree.heading(
             "reason",
-            text="Reason",
+            text="Assignment Reason",
         )
+
         self.tree.heading(
             "distance",
             text="Distance (km)",
         )
+
         self.tree.heading(
             "decision",
             text="Decision",
         )
+
         self.tree.heading(
             "rejected",
             text="Rejected Drivers",
@@ -128,91 +171,154 @@ class ApprovalApp:
 
         self.tree.column(
             "reference",
+            width=90,
+            anchor="center",
+        )
+
+        self.tree.column(
+            "pickup",
+            width=100,
+            anchor="center",
+        )
+
+        self.tree.column(
+            "delivery",
             width=100,
             anchor="center",
         )
 
         self.tree.column(
             "driver",
-            width=130,
+            width=120,
             anchor="center",
         )
 
         self.tree.column(
             "reason",
-            width=230,
+            width=220,
         )
 
         self.tree.column(
             "distance",
-            width=110,
+            width=100,
             anchor="center",
         )
 
         self.tree.column(
             "decision",
-            width=110,
+            width=100,
             anchor="center",
         )
 
         self.tree.column(
             "rejected",
-            width=140,
+            width=160,
             anchor="center",
         )
 
-        self.tree.pack(
-            fill="both",
-            expand=True,
-            padx=25,
-            pady=10,
+        scrollbar = ttk.Scrollbar(
+            frame,
+            orient="vertical",
+            command=self.tree.yview,
         )
 
-        buttons = ttk.Frame(root)
-        buttons.pack(pady=15)
+        self.tree.configure(
+            yscrollcommand=scrollbar.set
+        )
 
-        approve_button = ttk.Button(
+        self.tree.pack(
+            side="left",
+            fill="both",
+            expand=True,
+        )
+
+        scrollbar.pack(
+            side="right",
+            fill="y",
+        )
+
+        # Status colours
+        self.tree.tag_configure(
+            "pending",
+            background="#fff4cc",
+        )
+
+        self.tree.tag_configure(
+            "approved",
+            background="#d9f7df",
+        )
+
+        self.tree.tag_configure(
+            "rejected",
+            background="#ffd9d9",
+        )
+
+    def create_buttons(self):
+        buttons = ttk.Frame(
+            self.root
+        )
+
+        buttons.pack(
+            pady=18
+        )
+
+        ttk.Button(
             buttons,
             text="Approve",
             command=lambda: self.change_decision(
                 "Approved"
             ),
-        )
-
-        approve_button.grid(
+        ).grid(
             row=0,
             column=0,
-            padx=10,
+            padx=7,
         )
 
-        reject_button = ttk.Button(
+        ttk.Button(
             buttons,
             text="Reject",
             command=lambda: self.change_decision(
                 "Rejected"
             ),
-        )
-
-        reject_button.grid(
+        ).grid(
             row=0,
             column=1,
-            padx=10,
+            padx=7,
         )
 
-        refresh_button = ttk.Button(
+        ttk.Button(
+            buttons,
+            text="Run Automation",
+            command=self.run_automation_button,
+        ).grid(
+            row=0,
+            column=2,
+            padx=7,
+        )
+
+        ttk.Button(
+            buttons,
+            text="Open Missions",
+            command=self.open_missions,
+        ).grid(
+            row=0,
+            column=3,
+            padx=7,
+        )
+
+        ttk.Button(
             buttons,
             text="Refresh",
             command=self.refresh_table,
-        )
-
-        refresh_button.grid(
+        ).grid(
             row=0,
-            column=2,
-            padx=10,
+            column=4,
+            padx=7,
         )
 
+    def create_status_bar(self):
         self.status_label = ttk.Label(
-            root,
+            self.root,
             text="",
             font=("Segoe UI", 10),
         )
@@ -221,48 +327,100 @@ class ApprovalApp:
             pady=(0, 15)
         )
 
-        self.refresh_table()
-
     def refresh_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        rows = load_approvals()
+        approvals = load_csv(
+            APPROVALS_FILE
+        )
 
-        for row in rows:
+        missions = load_csv(
+            MISSIONS_FILE
+        )
+
+        missions_by_reference = {
+            row.get("reference", ""): row
+            for row in missions
+        }
+
+        pending_count = 0
+        approved_count = 0
+
+        for approval in approvals:
+            reference = approval.get(
+                "reference",
+                "",
+            )
+
+            mission = missions_by_reference.get(
+                reference,
+                {},
+            )
+
+            decision = approval.get(
+                "decision",
+                "",
+            )
+
+            decision_lower = (
+                decision.strip().casefold()
+            )
+
+            if decision_lower == "pending":
+                tag = "pending"
+                pending_count += 1
+
+            elif decision_lower == "approved":
+                tag = "approved"
+                approved_count += 1
+
+            elif decision_lower == "rejected":
+                tag = "rejected"
+
+            else:
+                tag = ""
+
             self.tree.insert(
                 "",
                 "end",
                 values=(
-                    row.get(
-                        "reference",
+                    reference,
+                    mission.get(
+                        "pickup",
                         "",
                     ),
-                    row.get(
+                    mission.get(
+                        "delivery",
+                        "",
+                    ),
+                    approval.get(
                         "proposed_driver",
                         "",
                     ),
-                    row.get(
+                    approval.get(
                         "reason",
                         "",
                     ),
-                    row.get(
+                    approval.get(
                         "distance_km",
                         "",
                     ),
-                    row.get(
-                        "decision",
-                        "",
-                    ),
-                    row.get(
+                    decision,
+                    approval.get(
                         "rejected_drivers",
                         "",
                     ),
                 ),
+                tags=(tag,),
             )
 
         self.status_label.config(
-            text=f"{len(rows)} approval record(s)"
+            text=(
+                f"Total: {len(approvals)}   |   "
+                f"Pending: {pending_count}   |   "
+                f"Approved: {approved_count}"
+            )
         )
 
     def run_assignment_engine(self):
@@ -280,30 +438,46 @@ class ApprovalApp:
 
             if result.returncode != 0:
                 messagebox.showerror(
-                    "Automation error",
+                    "Automation Error",
                     result.stderr
                     or "main.py failed.",
                 )
+
                 return False
 
             return True
 
         except Exception as error:
             messagebox.showerror(
-                "Automation error",
+                "Automation Error",
                 str(error),
             )
 
             return False
+
+    def run_automation_button(self):
+        success = self.run_assignment_engine()
+
+        if success:
+            self.refresh_table()
+
+            messagebox.showinfo(
+                "Automation completed",
+                (
+                    "Transport automation "
+                    "completed successfully."
+                ),
+            )
 
     def change_decision(self, decision):
         selected = self.tree.selection()
 
         if not selected:
             messagebox.showwarning(
-                "No mission selected",
+                "No Mission Selected",
                 "Please select a mission first.",
             )
+
             return
 
         item = self.tree.item(
@@ -319,7 +493,9 @@ class ApprovalApp:
             values[0]
         )
 
-        rows = load_approvals()
+        rows = load_csv(
+            APPROVALS_FILE
+        )
 
         found = False
 
@@ -327,7 +503,7 @@ class ApprovalApp:
             if (
                 row.get(
                     "reference",
-                    ""
+                    "",
                 ).strip()
                 == reference.strip()
             ):
@@ -340,6 +516,7 @@ class ApprovalApp:
                 "Error",
                 "Mission not found.",
             )
+
             return
 
         save_approvals(rows)
@@ -353,29 +530,50 @@ class ApprovalApp:
 
         if decision == "Rejected":
             messagebox.showinfo(
-                "Driver rejected",
+                "Driver Rejected",
                 (
-                    f"{reference}\n\n"
-                    "The driver was rejected.\n"
-                    "The system searched "
-                    "automatically for an alternative."
+                    f"Mission {reference}\n\n"
+                    "Driver rejected.\n"
+                    "The system searched automatically "
+                    "for another available driver."
                 ),
             )
 
         else:
             messagebox.showinfo(
-                "Assignment approved",
+                "Assignment Approved",
                 (
-                    f"{reference}\n\n"
-                    "The driver assignment "
-                    "was approved."
+                    f"Mission {reference}\n\n"
+                    "Driver assignment approved."
                 ),
+            )
+
+    def open_missions(self):
+        if not MISSIONS_FILE.exists():
+            messagebox.showwarning(
+                "File Not Found",
+                "missions.csv does not exist yet.",
+            )
+
+            return
+
+        try:
+            os.startfile(
+                MISSIONS_FILE
+            )
+
+        except Exception as error:
+            messagebox.showerror(
+                "Open File Error",
+                str(error),
             )
 
 
 def main():
     root = tk.Tk()
-    ApprovalApp(root)
+
+    TransportApp(root)
+
     root.mainloop()
 
 
