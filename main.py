@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - smart driver assignment."""
+"""Mamourart Transport Automation - nearest available driver assignment."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -49,8 +49,8 @@ def parse_transport_email(email_text: str) -> TransportMission:
     return mission
 
 
-def load_drivers(drivers_file: Path) -> list[dict]:
-    with drivers_file.open(
+def load_csv(file_path: Path) -> list[dict]:
+    with file_path.open(
         "r",
         encoding="utf-8-sig",
         newline="",
@@ -58,33 +58,72 @@ def load_drivers(drivers_file: Path) -> list[dict]:
         return list(csv.DictReader(file))
 
 
+def get_distance(
+    from_city: str,
+    to_city: str,
+    distances: list[dict],
+) -> Optional[int]:
+
+    if from_city.casefold() == to_city.casefold():
+        return 0
+
+    for row in distances:
+        if (
+            row["from_city"].strip().casefold() == from_city.casefold()
+            and row["to_city"].strip().casefold() == to_city.casefold()
+        ):
+            return int(row["distance_km"])
+
+    return None
+
+
 def driver_is_free(
     driver_name: str,
     mission_date: Optional[str],
     busy_drivers: set,
 ) -> bool:
-    return (
+
+    key = (
         driver_name.casefold(),
         mission_date,
-    ) not in busy_drivers
+    )
+
+    return key not in busy_drivers
+
+
+def reserve_driver(
+    driver_name: str,
+    mission_date: Optional[str],
+    busy_drivers: set,
+) -> None:
+
+    busy_drivers.add(
+        (
+            driver_name.casefold(),
+            mission_date,
+        )
+    )
 
 
 def assign_driver(
     mission: TransportMission,
     drivers: list[dict],
+    distances: list[dict],
     busy_drivers: set,
 ) -> TransportMission:
 
+    # Driver already specified in the email
     if mission.driver:
-        busy_drivers.add(
-            (
-                mission.driver.casefold(),
-                mission.date,
-            )
+        reserve_driver(
+            mission.driver,
+            mission.date,
+            busy_drivers,
         )
         return mission
 
-    # 1. First choice: driver in the same city
+    pickup_city = (mission.pickup or "").strip()
+
+    # 1. Prefer a free driver in the same city
     for driver in drivers:
         driver_name = driver["name"].strip()
         driver_city = driver["city"].strip()
@@ -95,7 +134,7 @@ def assign_driver(
 
         same_city = (
             driver_city.casefold()
-            == (mission.pickup or "").strip().casefold()
+            == pickup_city.casefold()
         )
 
         free = driver_is_free(
@@ -104,15 +143,14 @@ def assign_driver(
             busy_drivers,
         )
 
-        if same_city and available and free:
+        if available and same_city and free:
             mission.driver = driver_name
             mission.status = "Assigned"
 
-            busy_drivers.add(
-                (
-                    driver_name.casefold(),
-                    mission.date,
-                )
+            reserve_driver(
+                driver_name,
+                mission.date,
+                busy_drivers,
             )
 
             print(
@@ -122,7 +160,9 @@ def assign_driver(
 
             return mission
 
-    # 2. Second choice: any available driver from another city
+    # 2. Find the nearest free driver
+    candidates = []
+
     for driver in drivers:
         driver_name = driver["name"].strip()
         driver_city = driver["city"].strip()
@@ -131,37 +171,53 @@ def assign_driver(
             driver["available"].strip().casefold() == "yes"
         )
 
-        different_city = (
-            driver_city.casefold()
-            != (mission.pickup or "").strip().casefold()
-        )
-
         free = driver_is_free(
             driver_name,
             mission.date,
             busy_drivers,
         )
 
-        if different_city and available and free:
-            mission.driver = driver_name
-            mission.status = "Assigned"
+        if not available or not free:
+            continue
 
-            busy_drivers.add(
+        distance = get_distance(
+            pickup_city,
+            driver_city,
+            distances,
+        )
+
+        if distance is not None:
+            candidates.append(
                 (
-                    driver_name.casefold(),
-                    mission.date,
+                    distance,
+                    driver_name,
+                    driver_city,
                 )
             )
 
-            print(
-                f"Fallback driver assigned: {driver_name} "
-                f"from {driver_city} "
-                f"to mission {mission.reference}"
-            )
+    if candidates:
+        candidates.sort(key=lambda item: item[0])
 
-            return mission
+        distance, driver_name, driver_city = candidates[0]
 
-    # 3. Nobody available
+        mission.driver = driver_name
+        mission.status = "Assigned"
+
+        reserve_driver(
+            driver_name,
+            mission.date,
+            busy_drivers,
+        )
+
+        print(
+            f"Nearest driver assigned: {driver_name} "
+            f"from {driver_city} "
+            f"({distance} km) "
+            f"to mission {mission.reference}"
+        )
+
+        return mission
+
     print(
         f"No available driver for mission "
         f"{mission.reference}"
@@ -173,12 +229,18 @@ def assign_driver(
 
 def main() -> None:
     base_dir = Path(__file__).parent
+
     emails_dir = base_dir / "emails"
     drivers_file = base_dir / "drivers.csv"
-    csv_file = base_dir / "missions.csv"
+    distances_file = base_dir / "distances.csv"
+    missions_file = base_dir / "missions.csv"
 
-    drivers = load_drivers(drivers_file)
-    email_files = sorted(emails_dir.glob("*.txt"))
+    drivers = load_csv(drivers_file)
+    distances = load_csv(distances_file)
+
+    email_files = sorted(
+        emails_dir.glob("*.txt")
+    )
 
     missions = []
     busy_drivers = set()
@@ -193,12 +255,13 @@ def main() -> None:
         mission = assign_driver(
             mission,
             drivers,
+            distances,
             busy_drivers,
         )
 
         missions.append(mission)
 
-    with csv_file.open(
+    with missions_file.open(
         "w",
         newline="",
         encoding="utf-8-sig",
@@ -219,12 +282,16 @@ def main() -> None:
         writer.writeheader()
 
         for mission in missions:
-            writer.writerow(asdict(mission))
+            writer.writerow(
+                asdict(mission)
+            )
 
     print(
         f"Processed {len(missions)} transport missions."
     )
-    print(f"CSV created: {csv_file}")
+    print(
+        f"CSV created: {missions_file}"
+    )
 
 
 if __name__ == "__main__":

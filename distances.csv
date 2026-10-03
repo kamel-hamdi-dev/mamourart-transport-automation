@@ -1,0 +1,7 @@
+from_city,to_city,distance_km
+Nice,Paris,930
+Nice,Lyon,470
+Nice,Bordeaux,800
+Paris,Nice,930
+Lyon,Nice,470
+Bordeaux,Nice,800
