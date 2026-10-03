@@ -1,4 +1,4 @@
-"""Mamourart Transport Automation - driver schedule conflict check."""
+"""Mamourart Transport Automation - smart driver assignment."""
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -58,6 +58,17 @@ def load_drivers(drivers_file: Path) -> list[dict]:
         return list(csv.DictReader(file))
 
 
+def driver_is_free(
+    driver_name: str,
+    mission_date: Optional[str],
+    busy_drivers: set,
+) -> bool:
+    return (
+        driver_name.casefold(),
+        mission_date,
+    ) not in busy_drivers
+
+
 def assign_driver(
     mission: TransportMission,
     drivers: list[dict],
@@ -73,41 +84,88 @@ def assign_driver(
         )
         return mission
 
+    # 1. First choice: driver in the same city
     for driver in drivers:
         driver_name = driver["name"].strip()
         driver_city = driver["city"].strip()
-        available = driver["available"].strip().casefold() == "yes"
+
+        available = (
+            driver["available"].strip().casefold() == "yes"
+        )
 
         same_city = (
             driver_city.casefold()
             == (mission.pickup or "").strip().casefold()
         )
 
-        schedule_key = (
-            driver_name.casefold(),
+        free = driver_is_free(
+            driver_name,
             mission.date,
+            busy_drivers,
         )
 
-        already_busy = schedule_key in busy_drivers
-
-        if same_city and available and not already_busy:
+        if same_city and available and free:
             mission.driver = driver_name
             mission.status = "Assigned"
 
-            busy_drivers.add(schedule_key)
+            busy_drivers.add(
+                (
+                    driver_name.casefold(),
+                    mission.date,
+                )
+            )
 
             print(
-                f"Auto-assigned {driver_name} "
+                f"Local driver assigned: {driver_name} "
                 f"to mission {mission.reference}"
             )
 
             return mission
 
-        if same_city and available and already_busy:
-            print(
-                f"Schedule conflict: {driver_name} "
-                f"is already busy on {mission.date}"
+    # 2. Second choice: any available driver from another city
+    for driver in drivers:
+        driver_name = driver["name"].strip()
+        driver_city = driver["city"].strip()
+
+        available = (
+            driver["available"].strip().casefold() == "yes"
+        )
+
+        different_city = (
+            driver_city.casefold()
+            != (mission.pickup or "").strip().casefold()
+        )
+
+        free = driver_is_free(
+            driver_name,
+            mission.date,
+            busy_drivers,
+        )
+
+        if different_city and available and free:
+            mission.driver = driver_name
+            mission.status = "Assigned"
+
+            busy_drivers.add(
+                (
+                    driver_name.casefold(),
+                    mission.date,
+                )
             )
+
+            print(
+                f"Fallback driver assigned: {driver_name} "
+                f"from {driver_city} "
+                f"to mission {mission.reference}"
+            )
+
+            return mission
+
+    # 3. Nobody available
+    print(
+        f"No available driver for mission "
+        f"{mission.reference}"
+    )
 
     mission.status = "New"
     return mission
@@ -126,7 +184,9 @@ def main() -> None:
     busy_drivers = set()
 
     for email_file in email_files:
-        email_text = email_file.read_text(encoding="utf-8")
+        email_text = email_file.read_text(
+            encoding="utf-8"
+        )
 
         mission = parse_transport_email(email_text)
 
@@ -161,7 +221,9 @@ def main() -> None:
         for mission in missions:
             writer.writerow(asdict(mission))
 
-    print(f"Processed {len(missions)} transport missions.")
+    print(
+        f"Processed {len(missions)} transport missions."
+    )
     print(f"CSV created: {csv_file}")
 
 
