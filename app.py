@@ -8,7 +8,10 @@ import sys
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
-from dashboard_email_patch import mailbox_is_configured, run_email_import
+from dashboard_email_patch import (
+    mailbox_is_configured,
+    run_email_import,
+)
 
 
 BASE_DIR = Path(__file__).parent
@@ -16,6 +19,7 @@ BASE_DIR = Path(__file__).parent
 APPROVALS_FILE = BASE_DIR / "data" / "approvals.csv"
 MISSIONS_FILE = BASE_DIR / "data" / "missions.csv"
 MAIN_FILE = BASE_DIR / "main.py"
+LOGO_FILE = BASE_DIR / "mamourart_dashboard.png"
 
 APPROVAL_FIELDS = [
     "reference",
@@ -40,6 +44,11 @@ def load_csv(file_path):
 
 
 def save_approvals(rows):
+    APPROVALS_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
     with APPROVALS_FILE.open(
         "w",
         encoding="utf-8-sig",
@@ -65,13 +74,20 @@ def save_approvals(rows):
 class TransportApp:
     def __init__(self, root):
         self.root = root
+        self.logo_image = None
 
         self.root.title(
             "Mamourart Transport Automation"
         )
 
-        self.root.geometry("1280x700")
-        self.root.minsize(1100, 600)
+        self.root.geometry(
+            "1280x760"
+        )
+
+        self.root.minsize(
+            1100,
+            650,
+        )
 
         self.root.configure(
             bg="#f3f4f6"
@@ -93,13 +109,37 @@ class TransportApp:
 
         header.pack(
             fill="x",
-            pady=(18, 8),
+            pady=(12, 8),
         )
+
+        if LOGO_FILE.exists():
+            try:
+                self.logo_image = tk.PhotoImage(
+                 file=str(LOGO_FILE)
+                  ).subsample(2, 2)
+
+                tk.Label(
+                    header,
+                    image=self.logo_image,
+                    bg="#f3f4f6",
+                ).pack(
+                    pady=(0, 6)
+                )
+
+            except tk.TclError as error:
+                print(
+                    "Logo loading error:",
+                    error,
+                )
 
         tk.Label(
             header,
             text="Mamourart Transport Automation",
-            font=("Segoe UI", 22, "bold"),
+            font=(
+                "Segoe UI",
+                22,
+                "bold",
+            ),
             bg="#f3f4f6",
         ).pack()
 
@@ -109,7 +149,10 @@ class TransportApp:
                 "Driver Assignment & "
                 "Human Approval Dashboard"
             ),
-            font=("Segoe UI", 11),
+            font=(
+                "Segoe UI",
+                11,
+            ),
             bg="#f3f4f6",
             fg="#555555",
         ).pack(
@@ -182,7 +225,11 @@ class TransportApp:
         value_label = tk.Label(
             card,
             text="0",
-            font=("Segoe UI", 22, "bold"),
+            font=(
+                "Segoe UI",
+                22,
+                "bold",
+            ),
             bg="white",
         )
 
@@ -193,7 +240,10 @@ class TransportApp:
         tk.Label(
             card,
             text=title,
-            font=("Segoe UI", 10),
+            font=(
+                "Segoe UI",
+                10,
+            ),
             bg="white",
             fg="#555555",
         ).pack(
@@ -251,7 +301,7 @@ class TransportApp:
 
         self.tree.column(
             "reference",
-            width=85,
+            width=105,
             anchor="center",
         )
 
@@ -323,7 +373,6 @@ class TransportApp:
             fill="y",
         )
 
-        # Colours for mission status
         self.tree.tag_configure(
             "assigned",
             background="#dbeafe",
@@ -430,7 +479,8 @@ class TransportApp:
                 "Mailbox Authentication",
                 (
                     "Enter the mailbox app password / password.\n"
-                    "It will be used for this import only and will not be saved."
+                    "It will be used for this import only "
+                    "and will not be saved."
                 ),
                 show="*",
                 parent=self.root,
@@ -439,27 +489,40 @@ class TransportApp:
             if secret is None:
                 return
 
-        success, stdout, stderr = run_email_import(secret)
+        success, stdout, stderr = (
+            run_email_import(
+                secret
+            )
+        )
 
         if not success:
             messagebox.showerror(
                 "Email Import Error",
-                stderr or "email_import.py failed.",
+                stderr
+                or "email_import.py failed.",
             )
+
             return
 
         self.refresh_table()
 
         messagebox.showinfo(
             "Email Import Completed",
-            stdout or "Email import completed successfully.",
+            stdout
+            or (
+                "Email import "
+                "completed successfully."
+            ),
         )
 
     def create_status_bar(self):
         self.status_label = tk.Label(
             self.root,
             text="",
-            font=("Segoe UI", 10),
+            font=(
+                "Segoe UI",
+                10,
+            ),
             bg="#f3f4f6",
             fg="#444444",
         )
@@ -508,19 +571,27 @@ class TransportApp:
         )
 
         self.total_value.config(
-            text=str(total_missions)
+            text=str(
+                total_missions
+            )
         )
 
         self.pending_value.config(
-            text=str(pending)
+            text=str(
+                pending
+            )
         )
 
         self.approved_value.config(
-            text=str(approved)
+            text=str(
+                approved
+            )
         )
 
         self.review_value.config(
-            text=str(needs_review)
+            text=str(
+                needs_review
+            )
         )
 
     def get_display_status(
@@ -534,13 +605,22 @@ class TransportApp:
                 "",
             ).strip()
 
-            if decision.casefold() == "pending":
+            if (
+                decision.casefold()
+                == "pending"
+            ):
                 return "Pending"
 
-            if decision.casefold() == "approved":
+            if (
+                decision.casefold()
+                == "approved"
+            ):
                 return "Approved"
 
-            if decision.casefold() == "rejected":
+            if (
+                decision.casefold()
+                == "rejected"
+            ):
                 return "Rejected"
 
         return mission.get(
@@ -553,7 +633,9 @@ class TransportApp:
         status,
     ):
         status_lower = (
-            status.strip().casefold()
+            status
+            .strip()
+            .casefold()
         )
 
         if status_lower == "assigned":
@@ -575,7 +657,9 @@ class TransportApp:
 
     def refresh_table(self):
         for item in self.tree.get_children():
-            self.tree.delete(item)
+            self.tree.delete(
+                item
+            )
 
         missions = load_csv(
             MISSIONS_FILE
@@ -599,17 +683,24 @@ class TransportApp:
                 "",
             )
 
-            approval = approvals_by_reference.get(
-                reference
+            approval = (
+                approvals_by_reference
+                .get(
+                    reference
+                )
             )
 
-            status = self.get_display_status(
-                mission,
-                approval,
+            status = (
+                self.get_display_status(
+                    mission,
+                    approval,
+                )
             )
 
-            tag = self.get_status_tag(
-                status
+            tag = (
+                self.get_status_tag(
+                    status
+                )
             )
 
             if approval:
@@ -652,12 +743,17 @@ class TransportApp:
 
                 rejected = ""
 
-            # Approved missions use final driver
-            if status.casefold() == "approved":
-                driver = mission.get(
-                    "driver",
-                    "",
-                ) or driver
+            if (
+                status.casefold()
+                == "approved"
+            ):
+                driver = (
+                    mission.get(
+                        "driver",
+                        "",
+                    )
+                    or driver
+                )
 
             self.tree.insert(
                 "",
@@ -692,7 +788,8 @@ class TransportApp:
 
         self.status_label.config(
             text=(
-                f"Showing {len(missions)} "
+                f"Showing "
+                f"{len(missions)} "
                 f"transport mission(s)"
             )
         )
@@ -710,7 +807,10 @@ class TransportApp:
                 check=False,
             )
 
-            if result.returncode != 0:
+            if (
+                result.returncode
+                != 0
+            ):
                 messagebox.showerror(
                     "Automation Error",
                     result.stderr
@@ -768,7 +868,9 @@ class TransportApp:
             selected[0]
         )
 
-        values = item["values"]
+        values = item[
+            "values"
+        ]
 
         if not values:
             return
@@ -803,9 +905,11 @@ class TransportApp:
                 "No Approval Required",
                 (
                     f"Mission {reference} "
-                    "does not have an approval record.\n\n"
-                    "The driver was already provided "
-                    "in the original transport email."
+                    "does not have an "
+                    "approval record.\n\n"
+                    "The driver was already "
+                    "provided in the original "
+                    "transport email."
                 ),
             )
 
@@ -828,7 +932,8 @@ class TransportApp:
             messagebox.showinfo(
                 "Driver Rejected",
                 (
-                    f"Mission {reference}\n\n"
+                    f"Mission "
+                    f"{reference}\n\n"
                     "Driver rejected.\n"
                     "The system searched "
                     "automatically for "
@@ -840,8 +945,10 @@ class TransportApp:
             messagebox.showinfo(
                 "Assignment Approved",
                 (
-                    f"Mission {reference}\n\n"
-                    "Driver assignment approved."
+                    f"Mission "
+                    f"{reference}\n\n"
+                    "Driver assignment "
+                    "approved."
                 ),
             )
 
@@ -850,7 +957,7 @@ class TransportApp:
             messagebox.showwarning(
                 "File Not Found",
                 (
-                    "missions.csv "
+                    "data\\missions.csv "
                     "does not exist yet."
                 ),
             )
