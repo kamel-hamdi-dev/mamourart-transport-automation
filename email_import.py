@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).parent
 CONFIG_FILE = BASE_DIR / "config" / "clients.json"
 PROCESSED_FILE = BASE_DIR / "data" / "processed_emails.json"
 INBOX_DIR = BASE_DIR / "inbox"
-MISSIONS_FILE = BASE_DIR / "missions.csv"
+MISSIONS_FILE = BASE_DIR / "data" / "missions.csv"
 
 
 def load_processed_ids(path: Path) -> set[str]:

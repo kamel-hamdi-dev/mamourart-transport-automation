@@ -13,8 +13,8 @@ from dashboard_email_patch import mailbox_is_configured, run_email_import
 
 BASE_DIR = Path(__file__).parent
 
-APPROVALS_FILE = BASE_DIR / "approvals.csv"
-MISSIONS_FILE = BASE_DIR / "missions.csv"
+APPROVALS_FILE = BASE_DIR / "data" / "approvals.csv"
+MISSIONS_FILE = BASE_DIR / "data" / "missions.csv"
 MAIN_FILE = BASE_DIR / "main.py"
 
 APPROVAL_FIELDS = [

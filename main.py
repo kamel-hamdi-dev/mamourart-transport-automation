@@ -203,8 +203,8 @@ def main():
     base_dir = Path(__file__).parent
     drivers_file = base_dir / "drivers.csv"
     distances_file = base_dir / "distances.csv"
-    missions_file = base_dir / "missions.csv"
-    approvals_file = base_dir / "approvals.csv"
+    missions_file = base_dir / "data" / "missions.csv"
+    approvals_file = base_dir / "data" / "approvals.csv"
 
     drivers = load_csv(drivers_file)
     distances = load_csv(distances_file)
