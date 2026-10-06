@@ -6,7 +6,9 @@ import os
 import subprocess
 import sys
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
+
+from dashboard_email_patch import mailbox_is_configured, run_email_import
 
 
 BASE_DIR = Path(__file__).parent
@@ -408,6 +410,49 @@ class TransportApp:
             row=0,
             column=4,
             padx=7,
+        )
+
+        ttk.Button(
+            buttons,
+            text="Import Emails",
+            command=self.import_emails_button,
+        ).grid(
+            row=0,
+            column=5,
+            padx=7,
+        )
+
+    def import_emails_button(self):
+        secret = None
+
+        if mailbox_is_configured():
+            secret = simpledialog.askstring(
+                "Mailbox Authentication",
+                (
+                    "Enter the mailbox app password / password.\n"
+                    "It will be used for this import only and will not be saved."
+                ),
+                show="*",
+                parent=self.root,
+            )
+
+            if secret is None:
+                return
+
+        success, stdout, stderr = run_email_import(secret)
+
+        if not success:
+            messagebox.showerror(
+                "Email Import Error",
+                stderr or "email_import.py failed.",
+            )
+            return
+
+        self.refresh_table()
+
+        messagebox.showinfo(
+            "Email Import Completed",
+            stdout or "Email import completed successfully.",
         )
 
     def create_status_bar(self):

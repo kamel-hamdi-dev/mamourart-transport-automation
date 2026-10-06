@@ -1,0 +1,8 @@
+From: dispatch@example.com
+Subject: New transport request
+Message-ID: <test-001@example.com>
+
+Reference: TEST-001
+Pickup: Paris
+Delivery: Lille
+Date: 10/10/2026
